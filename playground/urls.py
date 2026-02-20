@@ -6,4 +6,5 @@ urlpatterns = [
     path("listitems/", views.TaskListTzufCreate.as_view(), name="listitem-view-create"),
     path("listitems/<int:pk>/", views.TaskListTzufRetrieveUpdateDestroy.as_view(), name="update",),
     path('task-list/', views.task_list_view, name='task-list'),
+    path('user-list/', views.user_list_view, name='user-list'),
 ]

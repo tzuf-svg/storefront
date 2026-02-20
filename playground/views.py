@@ -5,6 +5,9 @@ from .serializers import ListTzufSerializer
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 from rest_framework.reverse import reverse
+from django.contrib.auth.models import User
+from .serializers import UserSerializer
+from django.contrib.auth.decorators import login_required
 
 
 
@@ -13,7 +16,8 @@ def api_root(request, format=None):
     return Response(
         {
             "task": reverse("listitem-view-create", request=request, format=format),
-            "list": reverse("task-list", request=request, format=format),
+            "task-list": reverse("task-list", request=request, format=format),
+            "user-list": reverse("user-list", request=request, format=format),
         }
     )
 
@@ -50,6 +54,16 @@ def task_list_view(request):
     return render(request, 'task_list.html', {'tasks': tasks})
 
 
+# Users view
+class UserListView(generics.ListAPIView):
+    queryset = User.objects.all()
+    serializer_class = UserSerializer
+
+
+# Users list
+def user_list_view(request):
+    users = User.objects.all()
+    return render(request, 'user_list.html', {'users': users})
 
 
 
