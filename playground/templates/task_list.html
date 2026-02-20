@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <style>
+        table { width: 100%; border-collapse: collapse; }
+        th, td { border: 1px solid #ddd; padding: 12px; text-align: left; }
+        th { background-color: #f2f2f2; }
+        tr:nth-child(even) { background-color: #f9f9f9; }
+    </style>
+</head>
+<body>
+
+<h2>Existing Tasks Table </Table></h2>
+
+<table>
+  <thead>
+    <tr>
+      <th>Title</th>
+      <th>Created At</th>
+      <th>Owner</th>
+      <th>Completed</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for task in tasks %}
+    <tr>
+      <td {% if task.category == 'urgent' %}style="color: red; font-weight: 900; font-size: 1.1em;"{% endif %}>
+           {{ task.title }}
+      </td>  
+      <td>{{ task.created_at|date:"Y-m-d H:i" }}</td>
+      <td>{{ task.owner.username|default:"TzufR" }}</td>
+      <td>{% if task.completed %}
+            <span style="color: green;">Done</span>
+          {% else %}
+            <span style="color: red;">Pending</span>
+          {% endif %}
+      </td>
+    </tr>
+    {% empty %}
+    <tr>
+      <td colspan="3">No tasks found.</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+</body>
+</html>
