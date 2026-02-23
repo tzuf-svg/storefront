@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <style>
+        table { width: 100%; border-collapse: collapse; }
+        th, td { border: 1px solid #ddd; padding: 12px; text-align: left; }
+        th { background-color: #f2f2f2; }
+        tr:nth-child(even) { background-color: #f9f9f9; }
+    </style>
+    <title>Team Members</title>
+</head>
+<body>
+
+<h2>TzufR Team Members </Table></h2>
+
+<table>
+  <thead>
+    <tr>
+      <th>Name</th>
+      <th>Rule</th>
+      <th>Email</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for user in users %}
+    <tr>
+      <td>{{ user.username }}</td>  
+      <td>{{ user.groups }}</td>
+      <td>{{ user.email|default:"No Email" }}</td>
+    </tr>
+    {% empty %}
+    <tr>
+      <td colspan="3">No tasks found.</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+</body>
+</html>
