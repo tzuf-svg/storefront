@@ -1,3 +1,4 @@
+'''
 from rest_framework import serializers
 from .models import ListTzuf
 from .workrules import validate_category_logic
@@ -22,3 +23,4 @@ class UserSerializer(serializers.ModelSerializer):
         model = User
         fields = ['id', 'username', 'email', 'is_staff']
         
+'''
