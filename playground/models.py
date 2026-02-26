@@ -5,7 +5,7 @@ from django.contrib.auth.models import User
 
 
 class ListTzuf(models.Model):
-#הגדרת קטגוריות 
+    # categoris of tasks    
     CATEGORY_CHOICES = [
         ('work', 'Work'),
         ('personal', 'Personal'),
@@ -13,7 +13,6 @@ class ListTzuf(models.Model):
         ('management', 'Management'),
     ]
     
-
     title = models.CharField(max_length=100)
     category = models.CharField(choices=CATEGORY_CHOICES, default='work')
     content = models.TextField()
