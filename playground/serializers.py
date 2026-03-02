@@ -1,23 +1,30 @@
 from rest_framework import serializers
-from .models import ListTzuf
+from .models import ListTzuf, Tag
 from .workrules import validate_category_logic
 from django.contrib.auth.models import User
 
 
+class TagSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Tag
+        fields = ['id', 'name']
+
+
 class ListTzufSerializer(serializers.ModelSerializer):
     owner = serializers.ReadOnlyField(source='owner.username')
+    tags = TagSerializer(many=True, read_only=True)
 
     class Meta:
         model = ListTzuf
-        fields = ["id", "title", "category", "content", "completed", "created_at", "owner"]
+        fields = ["id", "title", "category", "content", "completed", "created_at", "owner", "tags"]
 
     def validate_category(self, value):
         user = self.context['request'].user
         return validate_category_logic(value, user)
     
-
+'''''
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         fields = ['id', 'username', 'email', 'is_staff']
-        
+  '''      
