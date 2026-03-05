@@ -18,7 +18,7 @@ class TagSerializer(serializers.ModelSerializer):
 
 class ListTzufSerializer(serializers.ModelSerializer):
     owner = serializers.ReadOnlyField(source='owner.username')
-    tags = TagSerializer(many=True, read_only=True)
+    tags = serializers.PrimaryKeyRelatedField(queryset=Tag.objects.all(), many=True)
     coworker = UserSerializer(read_only=True)
     coworker_id = serializers.PrimaryKeyRelatedField(
         queryset=User.objects.all(),
