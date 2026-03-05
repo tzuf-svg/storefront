@@ -75,6 +75,7 @@ WSGI_APPLICATION = 'storefront.wsgi.application'
 # https://docs.djangoproject.com/en/6.0/ref/settings/#databases
 
 
+# Origenal default
 '''
 DATABASES = {
     'default': {
@@ -90,7 +91,7 @@ DATABASES = {
         'NAME': 'storefront_db',
         'USER': 'postgres',
         'PASSWORD': '1234', 
-        'HOST': '127.0.0.1',
+        'HOST': 'db',
         'PORT': '5432',   
     }
 }
