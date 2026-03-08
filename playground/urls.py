@@ -9,7 +9,7 @@ class GoogleLogin(SocialLoginView):
 
 urlpatterns = [
     path('dj-rest-auth/google/', GoogleLogin.as_view(), name='google_login'),
-    path("",views.api_root),
+    path("task",views.api_root),
     path("listitems/", views.TaskListTzufCreate.as_view(), name="listitem-view-create"),
     path("listitems/<int:pk>/", views.TaskListTzufRetrieveUpdateDestroy.as_view(), name="update",),
     path('task-list/', views.task_list_view, name='task-list'),

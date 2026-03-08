@@ -10,6 +10,7 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/6.0/ref/settings/
 """
 
+import os
 from pathlib import Path
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -99,7 +100,7 @@ DATABASES = {
         'NAME': 'storefront_db',
         'USER': 'postgres',
         'PASSWORD': '1234', 
-        'HOST': 'db',
+        'HOST': os.environ.get("DB_HOST", 'localhost'), 
         'PORT': '5432',   
     }
 }
@@ -148,24 +149,28 @@ AUTHENTICATION_BACKENDS = [
     'allauth.account.auth_backends.AuthenticationBackend',
 ]
 
+'''
 LOGIN_EXEMPT_URLS = [
     r'^accounts/login/$',
     r'^accounts/google/login/$',
     r'^accounts/google/login/callback/$',
 ]
-LOGIN_URL = '/accounts/google/login/'
-LOGIN_REDIRECT_URL = '/' 
+
+
 ACCOUNT_LOGOUT_REDIRECT_URL = '/'
 SOCIALACCOUNT_QUERY_EMAIL = True
-ACCOUNT_EMAIL_REQUIRED = True
-EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
 SOCIALACCOUNT_AUTO_SIGNUP = True
+'''
 
-SOCIALACCOUNT_PROVIDERS = {
-    'google': {
-        'SCOPE': ['profile', 'email'],
-        'AUTH_PARAMS': {'access_type': 'online'},
-    }
-}
+LOGIN_URL = '/accounts/google/login/'
+LOGIN_REDIRECT_URL = '/'
+
+ACCOUNT_AUTHENTICATION_METHOD = "email"
+ACCOUNT_EMAIL_REQUIRED = True
+
+EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
+ 
+SOCIALACCOUNT_PROVIDERS = {}
+
 
 
