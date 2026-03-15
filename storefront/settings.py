@@ -47,7 +47,7 @@ INSTALLED_APPS = [
     'allauth.socialaccount',
     'allauth.socialaccount.providers.google',
 ]
-SITE_ID = 1
+
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
@@ -155,22 +155,36 @@ LOGIN_EXEMPT_URLS = [
     r'^accounts/google/login/$',
     r'^accounts/google/login/callback/$',
 ]
-
-
-ACCOUNT_LOGOUT_REDIRECT_URL = '/'
 SOCIALACCOUNT_QUERY_EMAIL = True
-SOCIALACCOUNT_AUTO_SIGNUP = True
 '''
 
-LOGIN_URL = '/accounts/google/login/'
-LOGIN_REDIRECT_URL = '/'
 
-ACCOUNT_AUTHENTICATION_METHOD = "email"
+# ACCOUNT_AUTHENTICATION_METHOD = "email"
+#SOCIALACCOUNT_AUTO_SIGNUP = True
+
+SITE_ID = 1
+LOGIN_URL = '/accounts/google/login/'
+LOGIN_REDIRECT_URL = '/tasklist/'
+LOGOUT_REDIRECT_URL = '/accounts/google/login/'
+
+
+ACCOUNT_SIGNUP_FIELDS = ['username*', 'email', 'password1*', 'password2*']
 ACCOUNT_EMAIL_REQUIRED = True
+
 
 EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
  
-SOCIALACCOUNT_PROVIDERS = {}
+SOCIALACCOUNT_PROVIDERS = {
+    'google': {
+        'EMAIL_AUTHENTICATION': True,
+        'SCOPE': ['profile', 'email'],
+        'AUTH_PARAMS': {'access_type': 'online'},
+    }
+}
 
 
+SOCIALACCOUNT_FORMS = {
+    'disconnect': 'allauth.socialaccount.forms.DisconnectForm',
+    'signup': 'allauth.socialaccount.forms.SignupForm',
+}
 

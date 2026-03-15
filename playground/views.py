@@ -14,7 +14,7 @@ from django.contrib.auth.decorators import login_required
 def api_root(request, format=None):
     return Response(
         {
-            "task": reverse("listitem-view-create", request=request, format=format),
+            "new-task": reverse("listitem-view-create", request=request, format=format),
             "task-list": reverse("task-list", request=request, format=format),
         }
     )
