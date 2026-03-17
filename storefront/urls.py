@@ -17,11 +17,23 @@ Including another URLconf
 from django.contrib import admin
 from django.urls import path, include
 from django.views.generic import RedirectView
+from django.contrib.auth import views as auth_views
+from django.contrib.auth import logout as django_logout
+from django.shortcuts import redirect
+from allauth.socialaccount.models import SocialAccount
+
+# logout the session delete
+def force_logout(request):
+    if request.user.is_authenticated:
+        SocialAccount.objects.filter(user=request.user).delete()    
+    django_logout(request)
+    return redirect('/accounts/login/')
 
 urlpatterns = [
     path('', RedirectView.as_view(url='/accounts/login/')),
     path('accounts/', include('allauth.urls')),
     path('admin/', admin.site.urls),
     path("tasklist/", include("playground.urls")),
+    path('api-auth/logout/', force_logout, name='logout'),
     path('api-auth/', include('rest_framework.urls')),
 ]

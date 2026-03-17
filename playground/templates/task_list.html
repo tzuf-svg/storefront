@@ -44,5 +44,10 @@
   </tbody>
 </table>
 
+  <form method="post" action="/accounts/logout/">
+    {% csrf_token %}
+    <button type="submit">Logout</button>
+  </form>
+
 </body>
 </html>

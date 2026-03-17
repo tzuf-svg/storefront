@@ -149,36 +149,35 @@ AUTHENTICATION_BACKENDS = [
     'allauth.account.auth_backends.AuthenticationBackend',
 ]
 
-'''
-LOGIN_EXEMPT_URLS = [
-    r'^accounts/login/$',
-    r'^accounts/google/login/$',
-    r'^accounts/google/login/callback/$',
-]
-SOCIALACCOUNT_QUERY_EMAIL = True
-'''
-
-
-# ACCOUNT_AUTHENTICATION_METHOD = "email"
-#SOCIALACCOUNT_AUTO_SIGNUP = True
 
 SITE_ID = 1
+
+# django
 LOGIN_URL = '/accounts/google/login/'
 LOGIN_REDIRECT_URL = '/tasklist/'
 LOGOUT_REDIRECT_URL = '/accounts/google/login/'
 
 
+# allauth google
+ACCOUNT_LOGOUT_REDIRECT_URL = '/accounts/google/login/'
+ACCOUNT_EMAIL_VERIFICATION = 'none'
 ACCOUNT_SIGNUP_FIELDS = ['username*', 'email', 'password1*', 'password2*']
-ACCOUNT_EMAIL_REQUIRED = True
 
+SOCIALACCOUNT_EMAIL_VERIFICATION = True
+SOCIALACCOUNT_EMAIL_REQUIRED = True
+SOCIALACCOUNT_LOGIN_ON_GET = False
+SOCIALACCOUNT_AUTO_SIGNUP = True
 
-EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
- 
 SOCIALACCOUNT_PROVIDERS = {
     'google': {
-        'EMAIL_AUTHENTICATION': True,
+        #'EMAIL_AUTHENTICATION': True,
         'SCOPE': ['profile', 'email'],
-        'AUTH_PARAMS': {'access_type': 'online'},
+        'AUTH_PARAMS': {
+            'access_type': 'online',
+            'prompt': 'select_account',
+            },
+        'OAUTH_PKCE_ENABLED': True, 
+        'FETCH_USERINFO' : True   
     }
 }
 
@@ -188,3 +187,5 @@ SOCIALACCOUNT_FORMS = {
     'signup': 'allauth.socialaccount.forms.SignupForm',
 }
 
+# auto confirmation
+EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
