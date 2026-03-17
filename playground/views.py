@@ -6,9 +6,11 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
 from rest_framework.reverse import reverse
 from rest_framework.permissions import IsAuthenticated
+from .permissions import IsAdmin, IsStaff, IsStaffOrReadOnly
 from django.contrib.auth.models import User
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth import logout
+from django.db.models import Q
 
 
 
@@ -33,17 +35,16 @@ def logout_view(request):
 
 class TaskListTzufCreate(generics.ListCreateAPIView):
     serializer_class = ListTzufSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [IsStaff]
 
     def get_queryset(self):
         user = self.request.user
         
-        # permissions
-        if user.is_staff:
+        # admin permissions 
+        if user.is_superuser:
             return ListTzuf.objects.all()
-        
-        # staf sees 'management'
-        return ListTzuf.objects.exclude(category='management')
+        else:
+            return ListTzuf.objects.filter(Q(owner=self.request.user) | Q(coworker=self.request.user))
 
     def perform_create(self, serializer):
         # save task
@@ -52,21 +53,32 @@ class TaskListTzufCreate(generics.ListCreateAPIView):
 
 
 class TaskListTzufRetrieveUpdateDestroy(generics.RetrieveUpdateDestroyAPIView):
-    serializer_class = ListTzufSerializer    
+    serializer_class = ListTzufSerializer
+    permission_classes = [IsStaff]    
     lookup_field = "pk"
 
     def get_queryset(self):
-        return ListTzuf.objects.filter(owner=self.request.user)
+        # admin permissions
+        user = self.request.user
+        if user.is_superuser:
+            return ListTzuf.objects.all()
+        else:
+            return ListTzuf.objects.filter(Q(owner=self.request.user) | Q(coworker=self.request.user))
 
 
+# the list
 def task_list_view(request):
-    tasks = ListTzuf.objects.all()
+    if request.user.is_superuser:
+        tasks = ListTzuf.objects.all()     
+    else:
+        tasks = ListTzuf.objects.exclude(category='management')
     return render(request, 'task_list.html', {'tasks': tasks})
 
 
 # Users view
 class UserView(generics.RetrieveAPIView):
     serializer_class = UserSerializer
+    permission_classes = [IsAdmin] 
 
     def get_object(self):
         return self.request.user

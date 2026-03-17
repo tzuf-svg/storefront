@@ -22,10 +22,11 @@ from django.contrib.auth import logout as django_logout
 from django.shortcuts import redirect
 from allauth.socialaccount.models import SocialAccount
 
+
 # logout the session delete
 def force_logout(request):
     if request.user.is_authenticated:
-        SocialAccount.objects.filter(user=request.user).delete()    
+        SocialAccount.objects.filter(user=request.user).update(extra_data={})
     django_logout(request)
     return redirect('/accounts/login/')
 

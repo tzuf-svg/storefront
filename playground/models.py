@@ -26,7 +26,7 @@ class ListTzuf(models.Model):
         )
     category = models.CharField(choices=CATEGORY_CHOICES, default='work')
     content = models.TextField()
-    coworker = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='tasks')
+    coworker = models.ManyToManyField(User, blank=True, related_name='tasks')
     completed = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
     owner = models.ForeignKey('auth.User', related_name='listtzufs', on_delete=models.CASCADE, null=True, default='TzufR')
