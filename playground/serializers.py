@@ -19,18 +19,18 @@ class TagSerializer(serializers.ModelSerializer):
 class ListTzufSerializer(serializers.ModelSerializer):
     owner = serializers.ReadOnlyField(source='owner.username')
     tags = serializers.PrimaryKeyRelatedField(queryset=Tag.objects.all(), many=True)
-    coworker = UserSerializer(read_only=True)
+    coworker = UserSerializer(read_only=True, many=True)
     coworker_id = serializers.PrimaryKeyRelatedField(
         queryset=User.objects.all(),
         source='coworker',
         write_only=True,
-        allow_null=True,
+        many=True,
         required=False
     )
 
     class Meta:
         model = ListTzuf
-        fields = ["id", "title", "category", "content", "completed", "created_at", "owner", "tags", "coworker", "coworker_id" ]
+        fields = ["id", "title", "category", "content", "completed", "completed_at", "created_at", "owner", "tags", "coworker", "coworker_id", "due_date" ]
 
     def validate_category(self, value):
         user = self.context['request'].user

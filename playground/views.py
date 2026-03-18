@@ -78,7 +78,7 @@ def task_list_view(request):
 # Users view
 class UserView(generics.RetrieveAPIView):
     serializer_class = UserSerializer
-    permission_classes = [IsAdmin] 
+    permission_classes = [IsStaff] 
 
     def get_object(self):
         return self.request.user
