@@ -1,12 +1,13 @@
-from django.shortcuts import render, redirect
 from .serializers import ListTzufSerializer, UserSerializer
 from .models import ListTzuf
+from .permissions import IsAdmin, IsStaff, IsStaffOrReadOnly
+from .workrules import validate_task_view
 from rest_framework import generics, permissions
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
 from rest_framework.reverse import reverse
 from rest_framework.permissions import IsAuthenticated
-from .permissions import IsAdmin, IsStaff, IsStaffOrReadOnly
+from django.shortcuts import render, redirect
 from django.contrib.auth.models import User
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth import logout
@@ -39,12 +40,15 @@ class TaskListTzufCreate(generics.ListCreateAPIView):
 
     def get_queryset(self):
         user = self.request.user
-        
+        return validate_task_view(self, user)
+        '''
         # admin permissions 
         if user.is_superuser:
             return ListTzuf.objects.all()
         else:
             return ListTzuf.objects.filter(Q(owner=self.request.user) | Q(coworker=self.request.user))
+        '''
+        
 
     def perform_create(self, serializer):
         # save task

@@ -1,15 +1,13 @@
 import django
 from django.conf import settings
 from django.test import TestCase
-from rest_framework.test import force_authenticate, APIRequestFactory, APIClient
 from django.urls import reverse
-from rest_framework import status
-from .models import ListTzuf
 from django.contrib.auth.models import User
 from datetime import date, timedelta
-from .factories import UserFactory
-from django.contrib.auth.models import User
-
+from rest_framework import status
+from rest_framework.test import force_authenticate, APIRequestFactory, APIClient
+from .factories import UserFactory, TodoFactory
+from .models import ListTzuf
 
 
 # Model tests
@@ -19,16 +17,12 @@ class TaskListCreateTest(TestCase):
     # create a staff user to test with
     def setUp(self):       
         self.client = APIClient()
-        self.user = User.objects.create_user(
-            username='testuser',
-            password='testpass123',
-            is_staff=True
-        )
+        self.user = UserFactory(is_staff=True)
         self.client.force_authenticate(user=self.user)
 
 
     def test_create_task(self):
-        # data to send
+        
         data = {
             'title': 'Test Task',
             'content': 'test',
@@ -213,22 +207,13 @@ class TaskAPITest(TestCase):
         self.client = APIClient()
         
         # owner
-        self.user = User.objects.create_user(
-            username='owner', password='testpass123', is_staff=True, is_superuser=True
-        )
+        self.user = UserFactory(is_staff=True, is_superuser=True)
         
         # other user 
-        self.other_user = User.objects.create_user(
-            username='other', password='testpass123', is_staff=True
-        )
+        self.other_user = UserFactory(is_staff=True, is_superuser=False)
 
         # create a task
-        self.task = ListTzuf.objects.create(
-            title='Test Task',
-            category='work',
-            content='test content',
-            owner=self.user
-        )
+        self.task = TodoFactory(owner=self.user)
 
     # GET - list all tasks
     def test_get_list_authenticated(self):
@@ -246,7 +231,7 @@ class TaskAPITest(TestCase):
         self.client.force_authenticate(user=self.user)
         response = self.client.get(f'/tasklist/listitems/{self.task.id}/')
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.data['title'], 'Test Task')
+        self.assertEqual(response.data['title'], self.task.title)
 
     # PATCH - owner can update
     def test_patch_owner(self):
@@ -296,4 +281,4 @@ class TaskAPITest(TestCase):
         self.client.force_authenticate(user=self.other_user)
         response = self.client.get('/tasklist/user/me/')
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.data['username'], 'other')  # not 'owner'
+        self.assertEqual(response.data['username'], self.other_user.username)  # not 'owner'
