@@ -143,12 +143,17 @@ USE_TZ = True
 STATIC_URL = 'static/'
 
 
+WEBHOOK_SECRET = os.environ.get('WEBHOOK_SECRET', 'your-dev-secret')
+
+
+CELERY_BROKER_URL = os.environ.get('REDIS_URL', 'redis://localhost:6379/0')
+CELERY_RESULT_BACKEND = os.environ.get('REDIS_URL', 'redis://localhost:6379/0')
+
 
 AUTHENTICATION_BACKENDS = [
     'django.contrib.auth.backends.ModelBackend',
     'allauth.account.auth_backends.AuthenticationBackend',
 ]
-
 
 SITE_ID = 1
 

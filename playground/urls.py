@@ -14,5 +14,6 @@ urlpatterns = [
     path('task-list/', views.task_list_view, name='task-list'),    
     path('user/me/', views.UserView.as_view(), name='user'),
     path('logout/', views.logout_view, name='logout'),
+    path('webhook/', views.webhook_receiver, name='webhook-secret-receiver'),
 ]
 

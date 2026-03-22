@@ -1,7 +1,8 @@
 from .serializers import ListTzufSerializer, UserSerializer
-from .models import ListTzuf
+from .models import ListTzuf, WebhookEvent
 from .permissions import IsAdmin, IsStaff, IsStaffOrReadOnly
 from .workrules import validate_task_view
+from .tasks import process_webhook_event
 from rest_framework import generics, permissions
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
@@ -12,6 +13,7 @@ from django.contrib.auth.models import User
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth import logout
 from django.db.models import Q
+from django.conf import settings
 
 
 
@@ -24,13 +26,32 @@ def api_root(request, format=None):
         }
     )
 
-
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def logout_view(request):
     request.session.flush()       # destroys session + clears cookie
     logout(request)               # Django logout
     return redirect('/accounts/google/login/')
+
+
+@api_view(['POST'])
+@permission_classes([])
+def webhook_receiver(request):
+    # validate secret header
+    secret = request.headers.get('X-Webhook-Secret')
+    if secret != settings.WEBHOOK_SECRET:
+        return Response({'error': 'Invalid secret'}, status=403)
+
+    # store the event
+    event = WebhookEvent.objects.create(
+        payload=request.data,
+        status='pending'
+    )
+    
+    # sends to Celery
+    process_webhook_event.delay(event.id)
+
+    return Response({'id': event.id, 'status': 'received'}, status=201)
 
 
 

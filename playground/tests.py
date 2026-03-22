@@ -7,7 +7,10 @@ from datetime import date, timedelta
 from rest_framework import status
 from rest_framework.test import force_authenticate, APIRequestFactory, APIClient
 from .factories import UserFactory, TodoFactory
-from .models import ListTzuf
+from .models import ListTzuf, WebhookEvent
+from unittest.mock import patch
+from .tasks import process_webhook_event
+
 
 
 # Model tests
@@ -282,3 +285,56 @@ class TaskAPITest(TestCase):
         response = self.client.get('/tasklist/user/me/')
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data['username'], self.other_user.username)  # not 'owner'
+
+
+class WebhookTest(TestCase):
+
+    WEBHOOK_URL = '/tasklist/webhook/'
+    SECRET = 'your-dev-secret'  # matches settings.WEBHOOK_SECRET default
+
+    # 1. Valid request → 201, event created with status 'pending'
+    def test_webhook_valid_secret(self):
+        response = self.client.post(
+            self.WEBHOOK_URL,
+            data={'event': 'test'},
+            content_type='application/json',
+            HTTP_X_WEBHOOK_SECRET=self.SECRET
+        )
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(WebhookEvent.objects.count(), 1)
+        self.assertEqual(WebhookEvent.objects.first().status, 'pending')
+
+    # 2. Wrong secret → 403
+    def test_webhook_wrong_secret(self):
+        response = self.client.post(
+            self.WEBHOOK_URL,
+            data={'event': 'test'},
+            content_type='application/json',
+            HTTP_X_WEBHOOK_SECRET='wrong-secret'
+        )
+        self.assertEqual(response.status_code, 403)
+        self.assertEqual(WebhookEvent.objects.count(), 0)
+
+    # 3. Missing secret → 403
+    def test_webhook_missing_secret(self):
+        response = self.client.post(
+            self.WEBHOOK_URL,
+            data={'event': 'test'},
+            content_type='application/json',
+        )
+        self.assertEqual(response.status_code, 403)
+
+    # 4. Task processes event → status becomes 'processed'
+    def test_task_success(self):
+        event = WebhookEvent.objects.create(payload={'event': 'test'}, status='pending')
+        process_webhook_event.apply(args=[event.id])  # runs synchronously
+        event.refresh_from_db()
+        self.assertEqual(event.status, 'processed')
+
+    # 5. Task failure → status becomes 'failed', retry is attempted
+    def test_task_failure_sets_status_failed(self):
+        event = WebhookEvent.objects.create(payload={'event': 'test'}, status='pending')
+        result = process_webhook_event.apply(args=[event.id], kwargs={'simulate_failure': True})
+        event.refresh_from_db()
+        self.assertEqual(event.status, 'failed')
+        self.assertTrue(result.failed())

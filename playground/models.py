@@ -33,9 +33,6 @@ def validate_due_date(value):
         raise ValidationError("Due date cannot be on a weekend.")
 
 
-
-
-
 class ListTzuf(models.Model):
 
     CATEGORY_CHOICES = [
@@ -71,4 +68,15 @@ class ListTzuf(models.Model):
             self.completed_at = None
         super().save(*args, **kwargs)
 
+
+class WebhookEvent(models.Model):
+    STATUS_CHOICES = [
+        ('pending', 'Pending'),
+        ('processed', 'Processed'),
+        ('failed', 'Failed'),
+    ]   
+    
+    payload = models.JSONField()
+    received_at = models.DateTimeField(auto_now_add=True)
+    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='pending')
 
