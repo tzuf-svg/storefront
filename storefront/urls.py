@@ -28,10 +28,11 @@ def force_logout(request):
     if request.user.is_authenticated:
         SocialAccount.objects.filter(user=request.user).update(extra_data={})
     django_logout(request)
-    return redirect('/accounts/login/')
+    return redirect('/login/')
 
 urlpatterns = [
-    path('', RedirectView.as_view(url='/accounts/login/')),
+    path('', RedirectView.as_view(url='/login/')),
+    path('login/', auth_views.LoginView.as_view(template_name='login.html'), name='login'),
     path('accounts/', include('allauth.urls')),
     path('admin/', admin.site.urls),
     path("tasklist/", include("playground.urls")),

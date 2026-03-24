@@ -158,13 +158,13 @@ AUTHENTICATION_BACKENDS = [
 SITE_ID = 1
 
 # django
-LOGIN_URL = '/accounts/google/login/'
+LOGIN_URL = '/login/'
 LOGIN_REDIRECT_URL = '/tasklist/'
-LOGOUT_REDIRECT_URL = '/accounts/google/login/'
+LOGOUT_REDIRECT_URL = '/login/'
 
 
 # allauth google
-ACCOUNT_LOGOUT_REDIRECT_URL = '/accounts/google/login/'
+ACCOUNT_LOGOUT_REDIRECT_URL = '/login/'
 ACCOUNT_EMAIL_VERIFICATION = 'none'
 ACCOUNT_SIGNUP_FIELDS = ['username*', 'email', 'password1*', 'password2*']
 
