@@ -62,6 +62,7 @@ class TaskListTzufCreate(generics.ListCreateAPIView):
     def get_queryset(self):
         user = self.request.user
         return validate_task_view(self, user)
+        
         '''
         # admin permissions 
         if user.is_superuser:
@@ -70,7 +71,6 @@ class TaskListTzufCreate(generics.ListCreateAPIView):
             return ListTzuf.objects.filter(Q(owner=self.request.user) | Q(coworker=self.request.user))
         '''
         
-
     def perform_create(self, serializer):
         # save task
         serializer.save(owner=self.request.user)
