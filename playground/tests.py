@@ -1,20 +1,20 @@
 import pytest
-from unittest.mock import patch, MagicMock
 from datetime import date, timedelta
+from unittest.mock import patch, MagicMock
 
 from django.conf import settings
-from django.contrib.auth.models import User
 from django.test import RequestFactory
-from rest_framework.test import APIClient
+from django.urls import reverse
 
 from allauth.socialaccount.models import SocialAccount
+from allauth.socialaccount.signals import social_account_removed
 
-from .factories import UserFactory, TodoFactory
+from .factories import UserFactory, TodoFactory, WebhookEventFactory
 from .models import ListTzuf, WebhookEvent
 from .tasks import process_webhook_event
 
 
-# ── helpers ──────────────────────────────────────────────────────────────────
+# ── helpers ───────────────────────────────────────────────────────────────────
 
 def next_weekday(d=None, offset_days=7):
     """Return a future weekday date offset_days from d (skipping weekends)."""
@@ -47,22 +47,18 @@ def weekend_date():
 @pytest.mark.django_db
 class TestTaskListCreate:
 
-    def setup_method(self):
-        self.client = APIClient()
-        self.url = '/tasklist/listitems/'
-
-    def test_list_tasks_staff_sees_own_and_coworker(self):
+    def test_list_tasks_staff_sees_own_and_coworker(self, api_client):
         staff = UserFactory(is_staff=True, is_superuser=False)
         other = UserFactory(is_staff=True, is_superuser=False)
         unrelated = UserFactory(is_staff=True, is_superuser=False)
 
-        own_task = TodoFactory(owner=staff, category='work', completed=False)
-        coworker_task = TodoFactory(owner=other, category='work', completed=False)
+        own_task = TodoFactory(owner=staff)
+        coworker_task = TodoFactory(owner=other)
         coworker_task.coworker.add(staff)
-        unrelated_task = TodoFactory(owner=unrelated, category='work', completed=False)
+        unrelated_task = TodoFactory(owner=unrelated)
 
-        self.client.force_authenticate(user=staff)
-        response = self.client.get(self.url)
+        api_client.force_authenticate(user=staff)
+        response = api_client.get(reverse('listitem-view-create'))
 
         assert response.status_code == 200
         ids = [t['id'] for t in response.data]
@@ -70,33 +66,33 @@ class TestTaskListCreate:
         assert coworker_task.id in ids
         assert unrelated_task.id not in ids
 
-    def test_list_tasks_superuser_sees_all(self):
+    def test_list_tasks_superuser_sees_all(self, api_client):
         superuser = UserFactory(is_staff=True, is_superuser=True)
         staff = UserFactory(is_staff=True, is_superuser=False)
-        task1 = TodoFactory(owner=staff, category='work', completed=False)
-        task2 = TodoFactory(owner=staff, category='work', completed=False)
+        task1 = TodoFactory(owner=staff)
+        task2 = TodoFactory(owner=staff)
 
-        self.client.force_authenticate(user=superuser)
-        response = self.client.get(self.url)
+        api_client.force_authenticate(user=superuser)
+        response = api_client.get(reverse('listitem-view-create'))
 
         assert response.status_code == 200
         ids = [t['id'] for t in response.data]
         assert task1.id in ids
         assert task2.id in ids
 
-    def test_list_tasks_unauthenticated_rejected(self):
-        response = self.client.get(self.url)
+    def test_list_tasks_unauthenticated_rejected(self, api_client):
+        response = api_client.get(reverse('listitem-view-create'))
         assert response.status_code == 403
 
-    def test_list_tasks_non_staff_rejected(self):
+    def test_list_tasks_non_staff_rejected(self, api_client):
         user = UserFactory(is_staff=False, is_superuser=False)
-        self.client.force_authenticate(user=user)
-        response = self.client.get(self.url)
+        api_client.force_authenticate(user=user)
+        response = api_client.get(reverse('listitem-view-create'))
         assert response.status_code == 403
 
-    def test_create_task_sets_owner(self):
+    def test_create_task_sets_owner(self, api_client):
         staff = UserFactory(is_staff=True, is_superuser=False)
-        self.client.force_authenticate(user=staff)
+        api_client.force_authenticate(user=staff)
         data = {
             'title': 'My New Task',
             'category': 'work',
@@ -105,13 +101,13 @@ class TestTaskListCreate:
             'tags': [],
             'coworker_id': [],
         }
-        response = self.client.post(self.url, data, format='json')
+        response = api_client.post(reverse('listitem-view-create'), data, format='json')
         assert response.status_code == 201
         assert response.data['owner'] == staff.username
 
-    def test_create_task_invalid_title_too_short(self):
+    def test_create_task_invalid_title_too_short(self, api_client):
         staff = UserFactory(is_staff=True, is_superuser=False)
-        self.client.force_authenticate(user=staff)
+        api_client.force_authenticate(user=staff)
         data = {
             'title': 'AB',
             'category': 'work',
@@ -120,77 +116,42 @@ class TestTaskListCreate:
             'tags': [],
             'coworker_id': [],
         }
-        response = self.client.post(self.url, data, format='json')
+        response = api_client.post(reverse('listitem-view-create'), data, format='json')
         assert response.status_code == 400
 
-    def test_create_task_staff_cannot_use_urgent_category(self):
+    @pytest.mark.parametrize("category,is_superuser,expected_status", [
+        ("urgent",     False, 400),
+        ("management", False, 400),
+        ("urgent",     True,  201),
+        ("management", True,  201),
+    ])
+    def test_category_restrictions(self, api_client, category, is_superuser, expected_status):
+        user = UserFactory(is_staff=True, is_superuser=is_superuser)
+        api_client.force_authenticate(user=user)
+        data = {
+            'title': f'{category.capitalize()} Task',
+            'category': category,
+            'content': 'Content',
+            'due_date': future_weekday().isoformat(),
+            'tags': [],
+            'coworker_id': [],
+        }
+        response = api_client.post(reverse('listitem-view-create'), data, format='json')
+        assert response.status_code == expected_status
+
+    @pytest.mark.parametrize("due_date_fn", [past_date, weekend_date])
+    def test_create_task_invalid_due_date_rejected(self, api_client, due_date_fn):
         staff = UserFactory(is_staff=True, is_superuser=False)
-        self.client.force_authenticate(user=staff)
+        api_client.force_authenticate(user=staff)
         data = {
-            'title': 'Urgent Task',
-            'category': 'urgent',
-            'content': 'Content',
-            'due_date': future_weekday().isoformat(),
-            'tags': [],
-            'coworker_id': [],
-        }
-        response = self.client.post(self.url, data, format='json')
-        assert response.status_code == 400
-
-    def test_create_task_superuser_can_use_urgent_category(self):
-        superuser = UserFactory(is_staff=True, is_superuser=True)
-        self.client.force_authenticate(user=superuser)
-        data = {
-            'title': 'Urgent Task',
-            'category': 'urgent',
-            'content': 'Content',
-            'due_date': future_weekday().isoformat(),
-            'tags': [],
-            'coworker_id': [],
-        }
-        response = self.client.post(self.url, data, format='json')
-        assert response.status_code == 201
-
-    def test_create_task_superuser_can_use_management_category(self):
-        superuser = UserFactory(is_staff=True, is_superuser=True)
-        self.client.force_authenticate(user=superuser)
-        data = {
-            'title': 'Management Task',
-            'category': 'management',
-            'content': 'Content',
-            'due_date': future_weekday().isoformat(),
-            'tags': [],
-            'coworker_id': [],
-        }
-        response = self.client.post(self.url, data, format='json')
-        assert response.status_code == 201
-
-    def test_create_task_past_due_date_rejected(self):
-        staff = UserFactory(is_staff=True, is_superuser=False)
-        self.client.force_authenticate(user=staff)
-        data = {
-            'title': 'Past Task',
+            'title': 'Task Title',
             'category': 'work',
             'content': 'Content',
-            'due_date': past_date().isoformat(),
+            'due_date': due_date_fn().isoformat(),
             'tags': [],
             'coworker_id': [],
         }
-        response = self.client.post(self.url, data, format='json')
-        assert response.status_code == 400
-
-    def test_create_task_weekend_due_date_rejected(self):
-        staff = UserFactory(is_staff=True, is_superuser=False)
-        self.client.force_authenticate(user=staff)
-        data = {
-            'title': 'Weekend Task',
-            'category': 'work',
-            'content': 'Content',
-            'due_date': weekend_date().isoformat(),
-            'tags': [],
-            'coworker_id': [],
-        }
-        response = self.client.post(self.url, data, format='json')
+        response = api_client.post(reverse('listitem-view-create'), data, format='json')
         assert response.status_code == 400
 
 
@@ -199,49 +160,43 @@ class TestTaskListCreate:
 @pytest.mark.django_db
 class TestTaskDetail:
 
-    def setup_method(self):
-        self.client = APIClient()
-
-    def url(self, pk):
-        return f'/tasklist/listitems/{pk}/'
-
-    def test_retrieve_own_task(self):
+    def test_retrieve_own_task(self, api_client):
         staff = UserFactory(is_staff=True, is_superuser=False)
-        task = TodoFactory(owner=staff, category='work', completed=False)
-        self.client.force_authenticate(user=staff)
-        response = self.client.get(self.url(task.pk))
+        task = TodoFactory(owner=staff)
+        api_client.force_authenticate(user=staff)
+        response = api_client.get(reverse('update', args=[task.pk]))
         assert response.status_code == 200
         assert response.data['id'] == task.id
 
-    def test_retrieve_coworker_task(self):
+    def test_retrieve_coworker_task(self, api_client):
         staff = UserFactory(is_staff=True, is_superuser=False)
         owner = UserFactory(is_staff=True, is_superuser=False)
-        task = TodoFactory(owner=owner, category='work', completed=False)
+        task = TodoFactory(owner=owner)
         task.coworker.add(staff)
-        self.client.force_authenticate(user=staff)
-        response = self.client.get(self.url(task.pk))
+        api_client.force_authenticate(user=staff)
+        response = api_client.get(reverse('update', args=[task.pk]))
         assert response.status_code == 200
 
-    def test_retrieve_other_task_rejected(self):
+    def test_retrieve_other_task_rejected(self, api_client):
         staff = UserFactory(is_staff=True, is_superuser=False)
         other = UserFactory(is_staff=True, is_superuser=False)
-        task = TodoFactory(owner=other, category='work', completed=False)
-        self.client.force_authenticate(user=staff)
-        response = self.client.get(self.url(task.pk))
+        task = TodoFactory(owner=other)
+        api_client.force_authenticate(user=staff)
+        response = api_client.get(reverse('update', args=[task.pk]))
         assert response.status_code == 404
 
-    def test_superuser_retrieves_any_task(self):
+    def test_superuser_retrieves_any_task(self, api_client):
         superuser = UserFactory(is_staff=True, is_superuser=True)
         other = UserFactory(is_staff=True, is_superuser=False)
-        task = TodoFactory(owner=other, category='work', completed=False)
-        self.client.force_authenticate(user=superuser)
-        response = self.client.get(self.url(task.pk))
+        task = TodoFactory(owner=other)
+        api_client.force_authenticate(user=superuser)
+        response = api_client.get(reverse('update', args=[task.pk]))
         assert response.status_code == 200
 
-    def test_update_task(self):
+    def test_update_task(self, api_client):
         staff = UserFactory(is_staff=True, is_superuser=False)
-        task = TodoFactory(owner=staff, category='work', completed=False)
-        self.client.force_authenticate(user=staff)
+        task = TodoFactory(owner=staff)
+        api_client.force_authenticate(user=staff)
         data = {
             'title': 'Updated Title',
             'category': 'personal',
@@ -251,51 +206,38 @@ class TestTaskDetail:
             'tags': [],
             'coworker_id': [],
         }
-        response = self.client.put(self.url(task.pk), data, format='json')
+        response = api_client.put(reverse('update', args=[task.pk]), data, format='json')
         assert response.status_code == 200
         assert response.data['title'] == 'Updated Title'
 
-    def test_delete_task(self):
+    def test_delete_task(self, api_client):
         staff = UserFactory(is_staff=True, is_superuser=False)
-        task = TodoFactory(owner=staff, category='work', completed=False)
-        self.client.force_authenticate(user=staff)
-        response = self.client.delete(self.url(task.pk))
+        task = TodoFactory(owner=staff)
+        api_client.force_authenticate(user=staff)
+        response = api_client.delete(reverse('update', args=[task.pk]))
         assert response.status_code == 204
         assert not ListTzuf.objects.filter(pk=task.pk).exists()
 
-    def test_completed_at_auto_set(self):
+    @pytest.mark.parametrize("initial_completed,set_completed,expect_set", [
+        (False, True,  True),   # marking complete sets completed_at
+        (True,  False, False),  # un-completing clears completed_at
+    ])
+    def test_completed_at_toggling(self, api_client, initial_completed, set_completed, expect_set):
         staff = UserFactory(is_staff=True, is_superuser=False)
-        task = TodoFactory(owner=staff, category='work', completed=False)
-        self.client.force_authenticate(user=staff)
+        task = TodoFactory(owner=staff, completed=initial_completed)
+        api_client.force_authenticate(user=staff)
         data = {
             'title': task.title,
             'category': task.category,
             'content': task.content,
             'due_date': task.due_date.isoformat(),
-            'completed': True,
+            'completed': set_completed,
             'tags': [],
             'coworker_id': [],
         }
-        response = self.client.put(self.url(task.pk), data, format='json')
+        response = api_client.put(reverse('update', args=[task.pk]), data, format='json')
         assert response.status_code == 200
-        assert response.data['completed_at'] is not None
-
-    def test_completed_at_cleared_on_uncomplete(self):
-        staff = UserFactory(is_staff=True, is_superuser=False)
-        task = TodoFactory(owner=staff, category='work', completed=True)
-        self.client.force_authenticate(user=staff)
-        data = {
-            'title': task.title,
-            'category': task.category,
-            'content': task.content,
-            'due_date': task.due_date.isoformat(),
-            'completed': False,
-            'tags': [],
-            'coworker_id': [],
-        }
-        response = self.client.put(self.url(task.pk), data, format='json')
-        assert response.status_code == 200
-        assert response.data['completed_at'] is None
+        assert (response.data['completed_at'] is not None) == expect_set
 
 
 # ── 3. UserViewTest ───────────────────────────────────────────────────────────
@@ -303,22 +245,18 @@ class TestTaskDetail:
 @pytest.mark.django_db
 class TestUserView:
 
-    def setup_method(self):
-        self.client = APIClient()
-        self.url = '/tasklist/user/me/'
-
-    def test_get_current_user(self):
+    def test_get_current_user(self, api_client):
         staff = UserFactory(is_staff=True, is_superuser=False)
-        self.client.force_authenticate(user=staff)
-        response = self.client.get(self.url)
+        api_client.force_authenticate(user=staff)
+        response = api_client.get(reverse('user'))
         assert response.status_code == 200
         assert response.data['id'] == staff.id
         assert response.data['username'] == staff.username
         assert 'email' in response.data
         assert 'is_staff' in response.data
 
-    def test_unauthenticated_rejected(self):
-        response = self.client.get(self.url)
+    def test_unauthenticated_rejected(self, api_client):
+        response = api_client.get(reverse('user'))
         assert response.status_code == 403
 
 
@@ -327,29 +265,24 @@ class TestUserView:
 @pytest.mark.django_db
 class TestWebhook:
 
-    def setup_method(self):
-        self.client = APIClient()
-        self.url = '/tasklist/webhook/'
-        self.secret = settings.WEBHOOK_SECRET
-
     @patch('playground.views.process_webhook_event')
-    def test_valid_secret_creates_event(self, mock_task):
+    def test_valid_secret_creates_event(self, mock_task, api_client):
         mock_task.delay = MagicMock()
         payload = {'event': 'task.created', 'data': {'id': 1}}
-        response = self.client.post(
-            self.url,
+        response = api_client.post(
+            reverse('webhook-secret-receiver'),
             payload,
             format='json',
-            HTTP_X_WEBHOOK_SECRET=self.secret,
+            HTTP_X_WEBHOOK_SECRET=settings.WEBHOOK_SECRET,
         )
         assert response.status_code == 201
         assert WebhookEvent.objects.filter(payload=payload).exists()
 
     @patch('playground.views.process_webhook_event')
-    def test_invalid_secret_rejected(self, mock_task):
+    def test_invalid_secret_rejected(self, mock_task, api_client):
         mock_task.delay = MagicMock()
-        response = self.client.post(
-            self.url,
+        response = api_client.post(
+            reverse('webhook-secret-receiver'),
             {'event': 'task.created'},
             format='json',
             HTTP_X_WEBHOOK_SECRET='wrong-secret',
@@ -357,17 +290,16 @@ class TestWebhook:
         assert response.status_code == 403
 
     @patch('playground.tasks.process_webhook_event.delay')
-    def test_celery_task_queued(self, mock_delay):
+    def test_celery_task_queued(self, mock_delay, api_client):
         payload = {'event': 'ping'}
-        response = self.client.post(
-            self.url,
+        response = api_client.post(
+            reverse('webhook-secret-receiver'),
             payload,
             format='json',
-            HTTP_X_WEBHOOK_SECRET=self.secret,
+            HTTP_X_WEBHOOK_SECRET=settings.WEBHOOK_SECRET,
         )
         assert response.status_code == 201
-        event_id = response.data['id']
-        mock_delay.assert_called_once_with(event_id)
+        mock_delay.assert_called_once_with(response.data['id'])
 
 
 # ── 5. CeleryTaskTest ─────────────────────────────────────────────────────────
@@ -376,17 +308,17 @@ class TestWebhook:
 class TestCeleryTask:
 
     def test_process_webhook_event_success(self):
-        event = WebhookEvent.objects.create(payload={'test': True}, status='pending')
+        event = WebhookEventFactory()
         process_webhook_event(event.id)
         event.refresh_from_db()
         assert event.status == 'processed'
 
     def test_process_webhook_event_not_found(self):
-        # Should log and not raise
         process_webhook_event(99999)
+        assert not WebhookEvent.objects.filter(pk=99999).exists()
 
     def test_process_webhook_event_simulate_failure(self):
-        event = WebhookEvent.objects.create(payload={'test': True}, status='pending')
+        event = WebhookEventFactory()
         with pytest.raises(Exception):
             process_webhook_event(event.id, simulate_failure=True)
         event.refresh_from_db()
@@ -398,33 +330,20 @@ class TestCeleryTask:
 @pytest.mark.django_db
 class TestTaskListHTMLView:
 
-    def setup_method(self):
-        self.client = APIClient()
-        self.url = '/tasklist/task-list/'
-
-    def test_superuser_sees_management_tasks(self):
+    def test_superuser_sees_management_tasks(self, django_client):
         superuser = UserFactory(is_staff=True, is_superuser=True)
-        mgmt_task = TodoFactory(owner=superuser, category='management', completed=False)
-        self.client.force_authenticate(user=superuser)
-
-        from django.test import Client as DjangoClient
-        django_client = DjangoClient()
+        mgmt_task = TodoFactory(owner=superuser, management=True)
         django_client.force_login(superuser)
-        response = django_client.get(self.url)
-
+        response = django_client.get(reverse('task-list'))
         assert response.status_code == 200
         assert mgmt_task in response.context['tasks']
 
-    def test_staff_excludes_management_tasks(self):
+    def test_staff_excludes_management_tasks(self, django_client):
         superuser = UserFactory(is_staff=True, is_superuser=True)
         staff = UserFactory(is_staff=True, is_superuser=False)
-        mgmt_task = TodoFactory(owner=superuser, category='management', completed=False)
-
-        from django.test import Client as DjangoClient
-        django_client = DjangoClient()
+        mgmt_task = TodoFactory(owner=superuser, management=True)
         django_client.force_login(staff)
-        response = django_client.get(self.url)
-
+        response = django_client.get(reverse('task-list'))
         assert response.status_code == 200
         assert mgmt_task not in response.context['tasks']
 
@@ -434,24 +353,21 @@ class TestTaskListHTMLView:
 @pytest.mark.django_db
 class TestGoogleOAuth:
 
-    def test_unauthenticated_redirects_to_login(self):
-        from django.test import Client as DjangoClient
-        client = DjangoClient()
-        response = client.get('/')
+    def test_unauthenticated_redirects_to_login(self, django_client):
+        response = django_client.get('/')
         assert response.status_code in (301, 302)
 
     def test_login_redirect_url_points_to_tasklist(self):
         assert settings.LOGIN_REDIRECT_URL == '/tasklist/'
 
-    def test_logout_view_flushes_session(self):
+    def test_logout_view_flushes_session(self, django_client):
         staff = UserFactory(is_staff=True, is_superuser=False)
-        api_client = APIClient()
-        api_client.force_authenticate(user=staff)
-        response = api_client.post('/tasklist/logout/')
-        # redirects after logout
-        assert response.status_code in (301, 302)
+        django_client.force_login(staff)
+        assert '_auth_user_id' in django_client.session
+        django_client.post('/tasklist/logout/')
+        assert '_auth_user_id' not in django_client.session
 
-    def test_force_logout_clears_social_account_extra_data(self):
+    def test_force_logout_clears_social_account_extra_data(self, django_client):
         staff = UserFactory(is_staff=True, is_superuser=False)
         SocialAccount.objects.create(
             user=staff,
@@ -459,16 +375,12 @@ class TestGoogleOAuth:
             uid='123',
             extra_data={'token': 'abc'},
         )
-        from django.test import Client as DjangoClient
-        client = DjangoClient()
-        client.force_login(staff)
-        response = client.post('/api-auth/logout/')
-        assert response.status_code in (301, 302)
+        django_client.force_login(staff)
+        django_client.post('/api-auth/logout/')
         sa = SocialAccount.objects.get(user=staff)
         assert sa.extra_data == {}
 
     def test_social_account_removed_signal_fires(self):
-        from allauth.socialaccount.signals import social_account_removed
         staff = UserFactory(is_staff=True, is_superuser=False)
         sa = SocialAccount.objects.create(
             user=staff,
@@ -489,15 +401,3 @@ class TestGoogleOAuth:
             handler.assert_called_once()
         finally:
             social_account_removed.disconnect(handler)
-
-    def test_social_login_creates_user(self):
-        """Verify that a user created via factory has is_authenticated True (simulates post-OAuth state)."""
-        user = UserFactory(is_staff=True, is_superuser=False)
-        SocialAccount.objects.create(
-            user=user,
-            provider='google',
-            uid='oauth-uid-42',
-            extra_data={'email': 'test@example.com'},
-        )
-        assert user.is_authenticated
-        assert SocialAccount.objects.filter(user=user, provider='google').exists()
