@@ -21,7 +21,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/6.0/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-&qia)*^b(oux$d7a!mnjcwew!^mfmhiaq3q&%-=a-ft&2!m&^a'
+SECRET_KEY = os.environ.get('SECRET_KEY', 'django-insecure-&qia)*^b(oux$d7a!mnjcwew!^mfmhiaq3q&%-=a-ft&2!m&^a')
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
@@ -99,7 +99,7 @@ DATABASES = {
         'ENGINE': 'django.db.backends.postgresql',
         'NAME': 'storefront_db',
         'USER': 'postgres',
-        'PASSWORD': '1234', 
+        'PASSWORD': os.environ.get('DB_PASSWORD', '1234'),
         'HOST': os.environ.get("DB_HOST", 'localhost'), 
         'PORT': os.environ.get('DB_PORT', '5433'),   
     }
@@ -144,6 +144,7 @@ STATIC_URL = 'static/'
 
 
 WEBHOOK_SECRET = os.environ.get('WEBHOOK_SECRET', 'your-dev-secret')
+MONDAY_SIGNING_SECRET = os.environ.get('MONDAY_SIGNING_SECRET', '')
 
 
 CELERY_BROKER_URL = os.environ.get('REDIS_URL', 'redis://localhost:6379/0')

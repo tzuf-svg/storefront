@@ -33,6 +33,9 @@ def validate_due_date(value):
         raise ValidationError("Due date cannot be on a weekend.")
 
 
+RESTRICTED_CATEGORIES = ['urgent', 'management']
+
+
 class ListTzuf(models.Model):
 
     CATEGORY_CHOICES = [
@@ -51,7 +54,7 @@ class ListTzuf(models.Model):
     coworker = models.ManyToManyField(User, blank=True, related_name='tasks')
     completed = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
-    owner = models.ForeignKey('auth.User', related_name='listtzufs', on_delete=models.CASCADE, null=True, default='TzufR')
+    owner = models.ForeignKey('auth.User', related_name='listtzufs', on_delete=models.CASCADE, null=True)
     completed_at = models.DateTimeField(null=True, blank=True)
     tags = models.ManyToManyField(Tag, related_name="tasks", blank=True)
     due_date = models.DateField(default=default_due_date, validators=[validate_due_date]
