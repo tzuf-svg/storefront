@@ -134,3 +134,30 @@ class TestMondayWebhookE2E:
         assert response.data["status"] == "ignored"
         assert not WebhookEvent.objects.exists()
         mock_sandbox.assert_not_called()
+
+    @patch("playground.views.run_in_sandbox")
+    def test_sandbox_returns_malformed_json_marks_event_failed(self, mock_sandbox, api_client):
+        TodoFactory(title="Parse Error Task", completed=False)
+        mock_sandbox.return_value = SandboxResult(
+            success=True,
+            output="not-valid-json",
+            error=None,
+        )
+
+        response = self._post(api_client, _monday_payload("Parse Error Task"))
+
+        assert response.status_code == 500
+        assert "Invalid sandbox output" in response.data["error"]
+        assert WebhookEvent.objects.filter(status="failed").exists()
+
+    def test_no_authorization_header_falls_through_to_legacy_path(self, api_client):
+        response = api_client.post(
+            reverse("webhook-secret-receiver"),
+            data=json_module.dumps(_monday_payload("Any Task")).encode("utf-8"),
+            content_type="application/json",
+            # No HTTP_AUTHORIZATION header — no Monday.com path
+            HTTP_X_WEBHOOK_SECRET="wrong-secret",
+        )
+
+        assert response.status_code == 403
+        assert not WebhookEvent.objects.exists()

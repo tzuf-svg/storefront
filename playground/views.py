@@ -12,6 +12,7 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
 from rest_framework.reverse import reverse
 from rest_framework.permissions import IsAuthenticated
+from django.db import transaction
 from django.shortcuts import render, redirect
 from django.contrib.auth import logout
 from django.conf import settings
@@ -48,7 +49,9 @@ def force_logout(request):
 @permission_classes([])
 def webhook_receiver(request):
     if request.headers.get('Authorization'):
-        if not validate_monday_signature(request):
+        # Read raw body before request.data so DRF doesn't consume the stream first
+        raw_body = request.body
+        if not validate_monday_signature(raw_body, request.headers.get('Authorization', '')):
             return Response({'error': 'Invalid signature'}, status=403)
 
         monday_event = normalize_monday_event(request.data)
@@ -66,18 +69,33 @@ def webhook_receiver(request):
         provider = BaseProvider(title=task.title, completed=task.completed)
         event = WebhookEvent.objects.create(payload=request.data, status='pending')
 
+        # Run sandbox outside the transaction — can take up to SANDBOX_TIMEOUT seconds
         result = run_in_sandbox(monday_event.code, provider.to_dict())
         if not result.success:
             event.status = 'failed'
             event.save()
             return Response({'error': 'Sandbox execution failed', 'detail': result.error}, status=500)
 
-        sandbox_data = json.loads(result.output)
-        task.completed = sandbox_data['completed']
-        task.save()
+        try:
+            sandbox_data = json.loads(result.output)
+            completed_value = sandbox_data['completed']
+        except (json.JSONDecodeError, KeyError) as exc:
+            event.status = 'failed'
+            event.save()
+            return Response({'error': 'Invalid sandbox output', 'detail': str(exc)}, status=500)
 
-        event.status = 'processed'
-        event.save()
+        # Atomic re-check and update — prevents race condition between two simultaneous requests
+        with transaction.atomic():
+            task = ListTzuf.objects.select_for_update().get(id=task.id)
+            if task.completed:
+                event.status = 'failed'
+                event.save()
+                return Response({'error': 'Task was already completed by another request'}, status=409)
+            task.completed = completed_value
+            task.save()  # triggers completed_at logic in model.save()
+            event.status = 'processed'
+            event.save()
+
         return Response({'id': event.id, 'status': 'received', 'task': sandbox_data}, status=201)
 
     secret = request.headers.get('X-Webhook-Secret')
