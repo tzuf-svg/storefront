@@ -1,7 +1,6 @@
 import factory
 from django.contrib.auth.models import User
 from factory.django import DjangoModelFactory
-from datetime import date, timedelta
 from .models import ListTzuf, WebhookEvent, default_due_date
 
 

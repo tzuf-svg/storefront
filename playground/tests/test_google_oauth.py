@@ -3,7 +3,6 @@ from unittest.mock import MagicMock
 
 from django.conf import settings
 from django.test import RequestFactory
-from django.urls import reverse
 
 from allauth.socialaccount.models import SocialAccount
 from allauth.socialaccount.signals import social_account_removed
