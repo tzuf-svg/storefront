@@ -29,6 +29,9 @@ jobs:
       DB_HOST: localhost
       DB_PORT: "5433"
       DB_PASSWORD: "1234"
+      SECRET_KEY: "ci-test-secret-key-not-for-production"
+      DJANGO_DEBUG: "False"
+      ALLOWED_HOSTS: "localhost,127.0.0.1"
 
     steps:
       - uses: actions/checkout@v4
@@ -39,13 +42,10 @@ jobs:
           python-version: "3.12"
 
       - name: Install project dependencies
-        run: uv sync
-
-      - name: Install dev tooling
-        run: uv pip install pytest pytest-django pytest-cov ruff
+        run: uv sync --extra dev
 
       - name: Lint
         run: uv run ruff check .
 
       - name: Test
-        run: uv run pytest
+        run: uv run pytest --cov
