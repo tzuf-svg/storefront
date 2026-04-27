@@ -1,4 +1,4 @@
-FROM python:3.12.7-slim AS builder
+FROM python:3.12-slim AS builder
 
 WORKDIR /app
 
@@ -7,7 +7,7 @@ COPY requirements.txt .
 RUN pip install --user --no-cache-dir -r requirements.txt
 
 
-FROM python:3.12.7-slim AS runtime
+FROM python:3.12-slim AS runtime
 
 RUN useradd --create-home --shell /bin/bash app
 
