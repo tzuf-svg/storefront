@@ -5,4 +5,4 @@ class PlaygroundConfig(AppConfig):
     name = 'playground'
 
     def ready(self):
-        import playground.signals
+        import playground.signals  # noqa: F401
