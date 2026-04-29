@@ -1,6 +1,6 @@
 asgiref==3.11.1
 certifi==2026.1.4
-charset-normalizer==3.4.4
+charset-normalizer==3.4.7
 defusedxml==0.7.1
 Django==6.0.2
 djangorestframework==3.16.1
