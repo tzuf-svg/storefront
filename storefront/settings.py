@@ -31,6 +31,26 @@ ALLOWED_HOSTS = [h for h in os.environ.get("ALLOWED_HOSTS", "localhost,127.0.0.1
 
 TESTING = "pytest" in sys.modules or "test" in sys.argv
 
+# Security headers
+# x-frame-options: DENY (clickjacking protection)
+X_FRAME_OPTIONS = "DENY"
+# x-content-type-options: nosniff
+SECURE_CONTENT_TYPE_NOSNIFF = True
+SECURE_REFERRER_POLICY = "same-origin"
+
+# content-security-policy
+CONTENT_SECURITY_POLICY = {
+    "DIRECTIVES": {
+        "default-src": ("'self'",),
+        "script-src": ("'self'",),
+        "style-src": ("'self'", "'unsafe-inline'"),
+        "img-src": ("'self'", "data:"),
+        "frame-ancestors": ("'none'",),
+        "base-uri": ("'self'",),
+        "form-action": ("'self'",),
+    },
+}
+
 if not DEBUG and not TESTING:
     SECURE_SSL_REDIRECT = True
     SESSION_COOKIE_SECURE = True
