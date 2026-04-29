@@ -10,7 +10,7 @@ markdown-it-py==4.0.0
 mdurl==0.1.2
 multidict==6.7.1
 psycopg2-binary==2.9.11
-Pygments==2.19.2
+Pygments==2.20.0
 PySocks==1.7.1
 requests==2.32.5
 requests-toolbelt==1.0.0
